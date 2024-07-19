@@ -18,7 +18,7 @@ This will install the packages from requirements.txt for this project.
 '''
 
 app = Flask(__name__)
-
+API_KEY="TopSecretAPIKey"
 
 # CREATE DB
 class Base(DeclarativeBase):
@@ -58,6 +58,7 @@ class Cafe(db.Model):
 
     # HTTP GET - Read Record
 
+
 @app.route("/random")
 def get_random_cafe():
     result = db.session.execute(db.select(Cafe))
@@ -77,24 +78,76 @@ def get_all_cafe():
     # return jsonify(cafes=cafes)
     return jsonify(cafes=[cafe.to_dict() for cafe in all_cafes])
 
+
 @app.route("/search")
 def search_for_cafe():
     loc = request.args.get('loc')
     result = db.session.execute(db.select(Cafe))
     all_cafes = result.scalars().all()
-    final_list=[cafe.to_dict() for cafe in all_cafes if
-                          cafe.location==loc.title()]
-    if len(final_list)>0:
+    final_list = [cafe.to_dict() for cafe in all_cafes if
+                  cafe.location == loc.title()]
+    if len(final_list) > 0:
         return jsonify(cafes=final_list)
     else:
-        return jsonify(error={"Not Found":"Sorry, we don't have a cafe at "
-                                          "that location"})
+        return jsonify(error={"Not Found": "Sorry, we don't have a cafe at "
+                                           "that location"})
+
 
 # HTTP POST - Create Record
+@app.route("/add", methods=["POST"])
+def post_new_cafe():
+    new_cafe = Cafe(
+        name=request.form.get("name"),
+        map_url=request.form.get("map_url"),
+        img_url=request.form.get("img_url"),
+        location=request.form.get("loc"),
+        has_sockets=bool(request.form.get("sockets")),
+        has_toilet=bool(request.form.get("toilet")),
+        has_wifi=bool(request.form.get("wifi")),
+        can_take_calls=bool(request.form.get("calls")),
+        seats=request.form.get("seats"),
+        coffee_price=request.form.get("coffee_price"),
+    )
+    db.session.add(new_cafe)
+    db.session.commit()
+    return jsonify(response={"success": "Successfully added the new cafe."})
+
 
 # HTTP PUT/PATCH - Update Record
 
+@app.route("/update-price/<int:cafe_id>", methods=["PATCH"])
+def cafe_price_patch(cafe_id):
+    updated_price = request.args.get("new_price")
+    cafe = db.get_or_404(Cafe, cafe_id)
+    if cafe:
+        cafe.coffee_price=updated_price
+        db.session.commit()
+        return jsonify(response={"success": "Successfully added the new cafe."})
+    else:
+        return jsonify(error={"Not Found": "Sorry a cafe with that id was "
+                                           "not found in the database."})
+
 # HTTP DELETE - Delete Record
+
+@app.route("/report-closed/<cafe_id>", methods=["DELETE"])
+def delete_cafe(cafe_id):
+    user_key = request.args.get("api-key")
+    cafe = db.get_or_404(Cafe, cafe_id)
+    if cafe:
+        if user_key==API_KEY:
+            cafe = db.get_or_404(Cafe, cafe_id)
+            db.session.delete(cafe)
+            db.session.commit()
+            return jsonify(
+                response={"success": "Successfully deleted the new cafe."})
+        else:
+            return jsonify({"error": "Sorry, that's not allowed. Make sure "
+                                     "you have the correct api_key"})
+    else:
+        return jsonify(error={"Not Found": "Sorry a cafe with that id was "
+                                           "not found in the database."})
+
+
 
 
 if __name__ == '__main__':
